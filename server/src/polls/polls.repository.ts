@@ -13,7 +13,7 @@ import {
   AddParticipantRankingsData,
   CreatePollData,
 } from './types';
-import { Poll } from 'shared';
+import { Poll, Results } from 'shared';
 
 @Injectable()
 export class PollsRepository {
@@ -40,6 +40,7 @@ export class PollsRepository {
       participants: {},
       nominations: {},
       rankings: {},
+      results: [],
       adminID: userID,
       hasStarted: false,
     };
@@ -235,6 +236,44 @@ export class PollsRepository {
       );
       throw new InternalServerErrorException(
         `Failed to add a rankings for userID/name: ${userID}/ to pollID: ${pollID}`,
+      );
+    }
+  }
+
+  async addResults(pollID: string, results: Results): Promise<Poll> {
+    this.logger.log(
+      `Attempting to add result to pollID: ${pollID}`,
+      JSON.stringify(results),
+    );
+    const key = `polls:${pollID}`;
+    const resultsPath = `.results`;
+
+    try {
+      await this.redisClient.send_command(
+        'JSON.SET',
+        key,
+        resultsPath,
+        JSON.stringify(results),
+      );
+      return this.getPoll(pollID);
+    } catch (err) {
+      this.logger.log(`Failed to add results for pollID ${pollID}`, err);
+      throw new InternalServerErrorException(
+        `Failed to add results for pollID ${pollID}`,
+      );
+    }
+  }
+
+  async deletePoll(pollID: string): Promise<void> {
+    const key = `polls:${pollID}`;
+    this.logger.log(`deleting poll: ${pollID}`);
+
+    try {
+      await this.redisClient.send_command('JSON.DEL', key);
+    } catch (err) {
+      this.logger.error(`Failed to delete poll: ${pollID}`, err);
+      throw new InternalServerErrorException(
+        `Failed to delete poll: ${pollID}`,
       );
     }
   }
